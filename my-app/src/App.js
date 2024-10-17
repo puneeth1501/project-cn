@@ -1,24 +1,50 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState, useEffect } from 'react';
+import gameContext from './gameContext';
+import Game from './components/Game';
+import JoinRoom from './components/JoinRoom';
+import socketService from './services/socketService';
+import './index.css';
 
 function App() {
+  const [isInRoom, setInRoom] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [playerColor, setPlayerColor] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    socketService.connect('http://localhost:9000')
+      .then(() => {
+        console.log('Connected to server');
+        setIsConnected(true);
+      })
+      .catch((err) => {
+        console.error('Error:', err);
+        setIsConnected(false);
+      });
+
+    return () => {
+      socketService.disconnect();
+    };
+  }, []);
+
+  if (!isConnected) {
+    return <div>Connecting to server...</div>;
+  }
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <gameContext.Provider value={{
+      isInRoom,
+      setInRoom,
+      roomName,
+      setRoomName,
+      playerColor,
+      setPlayerColor,
+    }}>
+      <div className="app-container">
+        <h1>Othello Game</h1>
+        {isInRoom ? <Game /> : <JoinRoom />}
+      </div>
+    </gameContext.Provider>
   );
 }
 
