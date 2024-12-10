@@ -101,6 +101,13 @@ export function Game() {
         }
     };
 
+    const resetGame = () => {
+        resetGameToInitial();
+        if (socketService.socket) {
+            gameService.resetGame(socketService.socket);
+        }
+    };
+    
     const initializeGame = () => {
         try {
             if (socketService.socket) {
@@ -276,13 +283,15 @@ export function Game() {
                             START
                         </button>
                     )}
+                    // <button 
+                    //     className='button' 
+                    //     disabled={!isGameFinished} 
+                    //     onClick={resetEntireGame}
+                    // >
+                    //     RESET
+                    // </button>
                     <button 
-                        className='button' 
-                        disabled={!isGameFinished} 
-                        onClick={resetEntireGame}
-                    >
-                        RESET
-                    </button>
+                    className='button' onClick={resetGame}> RESET</button> 
                     <select 
                         className='dropdown' 
                         disabled={isGameStarted} 
