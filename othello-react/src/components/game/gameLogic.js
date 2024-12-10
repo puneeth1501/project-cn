@@ -1,197 +1,270 @@
 class GameLogic {
-    constructor(matrix) {
-        this.matrix = matrix;
-        this.blackPos = [];
-        this.whitePos = [];
+    constructor(boardMatrix) {
+        try {
+            this.matrix = boardMatrix;
+            this.blackPos = [];
+            this.whitePos = [];
 
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                if (this.matrix[row][col] === 1) this.blackPos.push([row, col]);
-                if (this.matrix[row][col] === 2) this.whitePos.push([row, col]);
+            let rowIndex = 0;
+            while(rowIndex < 8) {
+                let colIndex = 0;
+                while(colIndex < 8) {
+                    let currentCell = this.matrix[rowIndex][colIndex];
+                    if (currentCell === 1) {
+                        this.blackPos.push([rowIndex, colIndex]);
+                    }
+                    if (currentCell === 2) {
+                        this.whitePos.push([rowIndex, colIndex]);
+                    }
+                    colIndex++;
+                }
+                rowIndex++;
             }
+        } catch (initError) {
+            console.error('Board initialization failed:', initError);
+            throw initError;
+        }
+    }
+
+    isTerminal() {
+        try {
+            let totalPieces = this.blackPos.length + this.whitePos.length;
+            let noBlackPieces = this.blackPos.length === 0;
+            let noWhitePieces = this.whitePos.length === 0;
+            let boardFull = totalPieces === 64;
+            
+            return noBlackPieces || noWhitePieces || boardFull;
+        } catch (terminalCheckError) {
+            console.error('Terminal state check failed:', terminalCheckError);
+            return false;
+        }
+    }
+
+    getFrontierDisc(playerColor) {
+        try {
+            const playerDiscs = this.getPos(playerColor);
+            let frontierDiscs = [];
+
+            for (let disc of playerDiscs) {
+                if (disc.includes(0) || disc.includes(7)) continue;
+
+                let foundEmpty = false;
+                let rowOffset = -1;
+
+                while(rowOffset <= 1) {
+                    let colOffset = -1;
+                    while(colOffset <= 1) {
+                        let adjacentCell = this.matrix[disc[0] + rowOffset][disc[1] + colOffset];
+                        if (adjacentCell === 0) {
+                            frontierDiscs.push(disc);
+                            foundEmpty = true;
+                            break;
+                        }
+                        colOffset++;
+                    }
+                    if (foundEmpty) break;
+                    rowOffset++;
+                }
+            }
+            return frontierDiscs;
+        } catch (frontierError) {
+            console.error('Frontier disc calculation failed:', frontierError);
+            return [];
+        }
+    }
+
+    getScore(playerColor) {
+        try {
+            let pieceCount = playerColor === 1 ? this.blackPos.length : this.whitePos.length;
+            return pieceCount;
+        } catch (scoreError) {
+            console.error('Score calculation failed:', scoreError);
+            return 0;
+        }
+    }
+
+    canClickSpot(rowPos, colPos, playerColor) {
+        try {
+            let cellEmpty = this.matrix[rowPos][colPos] === 0;
+            if (!cellEmpty) return false;
+
+            let affectedPieces = this.getAffectedDisks(rowPos, colPos, playerColor);
+            return affectedPieces.length > 0;
+        } catch (clickCheckError) {
+            console.error('Click check failed:', clickCheckError);
+            return false;
+        }
+    }
+
+    flipDisks(disksToFlip) {
+        try {
+            disksToFlip.forEach(diskPos => {
+                let currentValue = this.matrix[diskPos.row][diskPos.col];
+                this.matrix[diskPos.row][diskPos.col] = currentValue === 1 ? 2 : 1;
+            });
+        } catch (flipError) {
+            console.error('Disk flip failed:', flipError);
         }
     }
 
     getBoard() {
-        return this.matrix.map(arr => arr.slice());
-    }
-
-    getPos(color) {
-        return color === 1 ? this.blackPos : this.whitePos;
-    }
-
-    getScore(color) {
-        return color === 1 ? this.blackPos.length : this.whitePos.length;
-    }
-
-    canClickSpot(row, col, color) {
-        if (this.matrix[row][col] !== 0) return false;
-        const affectedDisks = this.getAffectedDisks(row, col, color);
-        return affectedDisks.length > 0;
-    }
-
-    iterator(row, rd, col, cd, color, affectedDisks) {
-        const couldBeAffected = [];
-        let columnIterator = col;
-        let rowIterator = row;
-
-        while (
-            ((rowIterator < 7 && rd === 1) || (rowIterator > 0 && rd === -1) || rd === 0) &&
-            ((columnIterator < 7 && cd === 1) || (columnIterator > 0 && cd === -1) || cd === 0)
-        ) {
-            columnIterator += cd;
-            rowIterator += rd;
-            const valueAtSpot = this.matrix[rowIterator][columnIterator];
-
-            if (valueAtSpot === 0 || valueAtSpot === color) {
-                if (valueAtSpot === color) {
-                    affectedDisks = affectedDisks.concat(couldBeAffected);
-                }
-                break;
-            } else {
-                const diskLocation = { row: rowIterator, col: columnIterator };
-                couldBeAffected.push(diskLocation);
-            }
+        try {
+            return this.matrix.map(row => row.slice());
+        } catch (getBoardError) {
+            console.error('Get board failed:', getBoardError);
+            return [];
         }
-
-        return affectedDisks;
     }
 
-    getAffectedDisks(row, col, color) {
-        let affectedDisks = [];
-
-        affectedDisks = this.iterator(row, 0, col, 1, color, affectedDisks);  // left to right
-        affectedDisks = this.iterator(row, 0, col, -1, color, affectedDisks); // right to left
-        affectedDisks = this.iterator(row, -1, col, 0, color, affectedDisks); // down to up
-        affectedDisks = this.iterator(row, 1, col, 0, color, affectedDisks);  // up to down
-        affectedDisks = this.iterator(row, 1, col, 1, color, affectedDisks);  // down right
-        affectedDisks = this.iterator(row, 1, col, -1, color, affectedDisks); // down left
-        affectedDisks = this.iterator(row, -1, col, -1, color, affectedDisks); // up left
-        affectedDisks = this.iterator(row, -1, col, 1, color, affectedDisks);  // up right
-
-        return affectedDisks;
+    getPos(playerColor) {
+        try {
+            return playerColor === 1 ? this.blackPos : this.whitePos;
+        } catch (getPosError) {
+            console.error('Get position failed:', getPosError);
+            return [];
+        }
     }
 
-    flipDisks(affectedDisks) {
-        affectedDisks.forEach(e => {
-            this.matrix[e.row][e.col] = this.matrix[e.row][e.col] === 1 ? 2 : 1;
-        });
-    }
-
-    canThisPlayerMove(color) {
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                if (this.canClickSpot(row, col, color)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    getMovableCell(color) {
-        const movable = [];
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                if (this.canClickSpot(row, col, color)) movable.push([row, col]);
-            }
-        }
-        return movable;
-    }
-
-    getStableDisc(color) {
-        const stable = [];
-        const redundant = Array(8).fill(0).map(() => Array(8).fill(false));
-
-        let xlim = 7;
-        for (let i = 0; i <= 7; i++) {
-            for (let j = 0; j <= xlim; j++) {
-                if (this.matrix[i][j] !== color) break;
-                if (!redundant[i][j]) {
-                    stable.push([i, j]);
-                    redundant[i][j] = true;
-                }
-            }
-            xlim = xlim - 1;
-            if (xlim < 0) break;
-        }
-
-        xlim = 0;
-        for (let i = 0; i <= 7; i++) {
-            for (let j = 7; j >= xlim; j--) {
-                if (this.matrix[i][j] !== color) break;
-                if (!redundant[i][j]) {
-                    stable.push([i, j]);
-                    redundant[i][j] = true;
-                }
-            }
-            xlim = xlim + 1;
-            if (xlim > 8) break;
-        }
-
-        xlim = 7;
-        for (let i = 7; i >= 0; i--) {
-            for (let j = 0; j <= xlim; j++) {
-                if (this.matrix[i][j] !== color) break;
-                if (!redundant[i][j]) {
-                    stable.push([i, j]);
-                    redundant[i][j] = true;
-                }
-            }
-            xlim = xlim - 1;
-            if (xlim < 0) break;
-        }
-
-        xlim = 0;
-        for (let i = 7; i >= 0; i--) {
-            for (let j = 7; j >= xlim; j--) {
-                if (this.matrix[i][j] !== color) break;
-                if (!redundant[i][j]) {
-                    stable.push([i, j]);
-                    redundant[i][j] = true;
-                }
-            }
-            xlim = xlim + 1;
-            if (xlim > 8) break;
-        }
-
-        return stable;
-    }
-
-    getFrontierDisc(color) {
-        const owndisc = this.getPos(color);
-        const frontier = [];
-        for (const disc of owndisc) {
-            if (disc.includes(0) || disc.includes(7)) continue;
-
-            let isfound = false;
-            for (let i = -1; i <= 1; i++) {
-                for (let j = -1; j <= 1; j++) {
-                    if (this.matrix[disc[0] + i][disc[1] + j] === 0) {
-                        frontier.push(disc);
-                        isfound = true;
-                        break;
+    getMovableCell(playerColor) {
+        try {
+            let movableCells = [];
+            let rowIdx = 0;
+            while(rowIdx < 8) {
+                let colIdx = 0;
+                while(colIdx < 8) {
+                    if (this.canClickSpot(rowIdx, colIdx, playerColor)) {
+                        movableCells.push([rowIdx, colIdx]);
                     }
+                    colIdx++;
                 }
-                if (isfound) break;
+                rowIdx++;
             }
+            return movableCells;
+        } catch (movableError) {
+            console.error('Movable cell calculation failed:', movableError);
+            return [];
         }
-
-        return frontier;
     }
 
-    isTerminal() {
-        return this.blackPos.length === 0 || this.whitePos.length === 0 || this.blackPos.length + this.whitePos.length === 64;
+    move(rowPos, colPos, playerColor) {
+        try {
+            let isValidMove = this.matrix[rowPos][colPos] === 0;
+            if (!isValidMove) return this;
+
+            let capturedDisks = this.getAffectedDisks(rowPos, colPos, playerColor);
+            
+            if (capturedDisks.length > 0) {
+                this.flipDisks(capturedDisks);
+                this.matrix[rowPos][colPos] = playerColor;
+            }
+            return this;
+        } catch (moveError) {
+            console.error('Move execution failed:', moveError);
+            return this;
+        }
     }
 
-    move(row, col, color) {
-        if (this.matrix[row][col] !== 0) return this;
-        const captured = this.getAffectedDisks(row, col, color);
-        if (captured.length !== 0) {
-            this.flipDisks(captured);
-            this.matrix[row][col] = color;
+    iterator(rowStart, rowDir, colStart, colDir, playerColor, affectedDisks) {
+        try {
+            let potentialFlips = [];
+            let currentCol = colStart;
+            let currentRow = rowStart;
+
+            while (
+                ((currentRow < 7 && rowDir === 1) || (currentRow > 0 && rowDir === -1) || rowDir === 0) &&
+                ((currentCol < 7 && colDir === 1) || (currentCol > 0 && colDir === -1) || colDir === 0)
+            ) {
+                currentCol += colDir;
+                currentRow += rowDir;
+                
+                let cellValue = this.matrix[currentRow][currentCol];
+                
+                if (cellValue === 0 || cellValue === playerColor) {
+                    if (cellValue === playerColor) {
+                        affectedDisks = [...affectedDisks, ...potentialFlips];
+                    }
+                    break;
+                } else {
+                    let diskPos = { row: currentRow, col: currentCol };
+                    potentialFlips.push(diskPos);
+                }
+            }
+            return affectedDisks;
+        } catch (iteratorError) {
+            console.error('Iterator failed:', iteratorError);
+            return affectedDisks;
         }
-        return this;
+    }
+
+    getAffectedDisks(rowPos, colPos, playerColor) {
+        try {
+            let affectedPieces = [];
+            
+            // Using array to store directions
+            let directions = [
+                [0, 1],   // right
+                [0, -1],  // left
+                [-1, 0],  // up
+                [1, 0],   // down
+                [1, 1],   // down right
+                [1, -1],  // down left
+                [-1, -1], // up left
+                [-1, 1]   // up right
+            ];
+
+            directions.forEach(dir => {
+                affectedPieces = this.iterator(
+                    rowPos, dir[0], 
+                    colPos, dir[1], 
+                    playerColor, 
+                    affectedPieces
+                );
+            });
+
+            return affectedPieces;
+        } catch (affectedError) {
+            console.error('Affected disks calculation failed:', affectedError);
+            return [];
+        }
+    }
+
+    getStableDisc(playerColor) {
+        try {
+            let stableDiscs = [];
+            let visitedCells = Array(8).fill(0).map(() => Array(8).fill(false));
+
+            // Modified to use while loops
+            let processQuadrant = (startRow, endRow, startCol, endCol, rowStep, colStep) => {
+                let row = startRow;
+                let limit = endCol;
+                
+                while((rowStep > 0 ? row <= endRow : row >= endRow)) {
+                    let col = startCol;
+                    while((colStep > 0 ? col <= limit : col >= limit)) {
+                        if (this.matrix[row][col] !== playerColor) break;
+                        if (!visitedCells[row][col]) {
+                            stableDiscs.push([row, col]);
+                            visitedCells[row][col] = true;
+                        }
+                        col += colStep;
+                    }
+                    limit += (colStep > 0 ? -1 : 1);
+                    if (limit < 0 || limit > 7) break;
+                    row += rowStep;
+                }
+            };
+
+            // Process all quadrants
+            processQuadrant(0, 7, 0, 7, 1, 1);    // top-left to bottom-right
+            processQuadrant(0, 7, 7, 0, 1, -1);   // top-right to bottom-left
+            processQuadrant(7, 0, 0, 7, -1, 1);   // bottom-left to top-right
+            processQuadrant(7, 0, 7, 0, -1, -1);  // bottom-right to top-left
+
+            return stableDiscs;
+        } catch (stableError) {
+            console.error('Stable disc calculation failed:', stableError);
+            return [];
+        }
     }
 }
 
