@@ -1,101 +1,161 @@
-
-// src/components/JoinRoom/index.js
 import React, { useContext, useState } from 'react';
 import gameContext from '../../gameContext';
-// import gameService from '../../services/gameService';
 import {gameService,socketService} from '../../services/socketService';
 import RoomList from '../RoomList';
 
 export function JoinRoom() {
-    const [isJoining, setJoining] = useState(false);
-    const { 
-        setInRoom, 
-        roomList, 
-        roomName, 
-        setRoomName,
-        setIsSpectator,
-        setIsCreator  // Added this
-    } = useContext(gameContext);
-    
-    const handleRoomNameChange = (e) => {
-        const value = e.target.value;
-        setRoomName(value);
-    };
+   const [isJoiningStatus, setJoiningStatus] = useState(false);
+   const [inputError, setInputError] = useState('');
+   
+   const { 
+       setInRoom, 
+       roomList, 
+       roomName, 
+       setRoomName,
+       setIsSpectator,
+       setIsCreator
+   } = useContext(gameContext);
 
-    const createRoom = async (e) => {
-        e.preventDefault();
-        const trimmedName = roomName.trim();
-        if (!trimmedName) {
-            alert('Please enter a room name');
-            return;
-        }
-        setJoining(true);
-        try {
-            const socket = socketService.socket;
-            console.log('Creating room:', trimmedName);
-            
-            const joined = await gameService.joinGameRoom(socket, trimmedName, true, false);
-            if (joined) {
-                setIsSpectator(false);
-                setIsCreator(true); // Set creator status
-                setRoomName(trimmedName);
-                setInRoom(true);
-            }
-        } catch (err) {
-            alert(err);
-        }
-        setJoining(false);
-    };
+   const joinExistingRoom = async (eventObj, selectedRoom, shouldCreate, joinAsSpectator) => {
+       eventObj.preventDefault();
+       
+       try {
+           setJoiningStatus(true);
+           let socketConnection = socketService.socket;
+           let playerType = joinAsSpectator ? 'spectator' : 'player';
+           
+           console.log(`Attempting to join "${selectedRoom}" as ${playerType}`);
+           
+           let joinAttempts = 0;
+           do {
+               let joinSuccess = await gameService.joinGameRoom(
+                   socketConnection, 
+                   selectedRoom, 
+                   shouldCreate, 
+                   joinAsSpectator
+               );
 
-    const joinRoom = async (e, roomName, createRoom, asSpectator) => {
-        e.preventDefault();
-        setJoining(true);
-        try {
-            const socket = socketService.socket;
-            console.log(`Joining room "${roomName}" as ${asSpectator ? 'spectator' : 'player'}`);
-            
-            const joined = await gameService.joinGameRoom(socket, roomName, createRoom, asSpectator);
-            if (joined) {
-                setIsSpectator(asSpectator);
-                setIsCreator(createRoom); // Set creator status based on join type
-                setRoomName(roomName);
-                setInRoom(true);
-            }
-        } catch (err) {
-            alert(err);
-        }
-        setJoining(false);
-    };
+               if (joinSuccess) {
+                   let stateUpdates = {
+                       spectator: joinAsSpectator,
+                       creator: shouldCreate,
+                       room: selectedRoom
+                   };
 
-    return (
-        <div className="join-room-page">
-            <div className="create-room-section">
-                <h2>Create New Room</h2>
-                <div className="create-room-form">
-                    <input
-                        type="text"
-                        placeholder="Enter Room Name"
-                        value={roomName}
-                        onChange={handleRoomNameChange}
-                        className="room-input"
-                        maxLength={20} // Limit room name length
-                    />
-                    <button 
-                        onClick={createRoom}
-                        disabled={isJoining || !roomName.trim()}
-                        className="create-button"
-                    >
-                        {isJoining ? 'Creating...' : 'Create Room'}
-                    </button>
-                </div>
-            </div>
+                   setIsSpectator(stateUpdates.spectator);
+                   setIsCreator(stateUpdates.creator);
+                   setRoomName(stateUpdates.room);
+                   setInRoom(true);
+               }
+               
+               joinAttempts++;
+           } while(joinAttempts < 1);
+           
+       } catch (joinError) {
+           console.error('Room join failed:', joinError);
+           setInputError('Failed to join room');
+           alert(joinError);
+       } finally {
+           setJoiningStatus(false);
+       }
+   };
+   
+   const handleRoomInputChange = (eventObj) => {
+       try {
+           let newValue = eventObj.target.value;
+           let maxLength = 20;
+           
+           let validatedValue = newValue.slice(0, maxLength);
+           setInputError('');
+           setRoomName(validatedValue);
+           
+       } catch (inputError) {
+           console.error('Input handling failed:', inputError);
+           setInputError('Error processing input');
+       }
+   };
 
-            <div className="divider">OR</div>
+   const createNewRoom = async (eventObj) => {
+       eventObj.preventDefault();
+       
+       try {
+           let roomNameToCreate = roomName.trim();
+           let isValidInput = Boolean(roomNameToCreate);
 
-            <div className="join-room-section">
-                <h2>Join Existing Room</h2>
-                <RoomList roomList={roomList} joinRoom={joinRoom} />
-            </div>
-        </div>
-    );
+           if (!isValidInput) {
+               let errorMsg = 'Please enter a room name';
+               setInputError(errorMsg);
+               alert(errorMsg);
+               return;
+           }
+
+           setJoiningStatus(true);
+           let socketConnection = socketService.socket;
+           
+           let attempts = 0;
+           while(attempts < 1) {
+               console.log('Attempting room creation:', roomNameToCreate);
+               attempts++;
+               
+               let joinSuccess = await gameService.joinGameRoom(
+                   socketConnection, 
+                   roomNameToCreate, 
+                   true, 
+                   false
+               );
+
+               if (joinSuccess) {
+                   let updateFlags = async () => {
+                       setIsSpectator(false);
+                       setIsCreator(true);
+                       setRoomName(roomNameToCreate);
+                       setInRoom(true);
+                   };
+                   await updateFlags();
+               }
+           }
+       } catch (createError) {
+           console.error('Room creation failed:', createError);
+           setInputError('Failed to create room');
+           alert(createError);
+       } finally {
+           setJoiningStatus(false);
+       }
+   };
+
+   return (
+       <div className="join-room-page">
+           <div className="join-room-section">
+               <h2>Join Existing Room</h2>
+               <RoomList 
+                   roomList={roomList} 
+                   joinRoom={joinExistingRoom} 
+               />
+           </div>
+
+           <div className="divider">OR</div>
+
+           <div className="create-room-section">
+               <h2>Create New Room</h2>
+               {inputError && <div className="error-message">{inputError}</div>}
+               <div className="create-room-form">
+                   <input
+                       type="text"
+                       placeholder="Enter Room Name"
+                       value={roomName}
+                       onChange={handleRoomInputChange}
+                       className="room-input"
+                       maxLength={20}
+                   />
+                   <button 
+                       onClick={createNewRoom}
+                       disabled={isJoiningStatus || !roomName.trim()}
+                       className="create-button"
+                   >
+                       {isJoiningStatus ? 'Creating...' : 'Create Room'}
+                   </button>
+               </div>
+           </div>
+       </div>
+   );
 }
