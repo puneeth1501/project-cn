@@ -241,7 +241,7 @@
 
 // module.exports = setupSocket;
 
-// src/socket.js
+// // src/socket.js
 const { Server } = require('socket.io');
 const { GameController, RoomController } = require('./controllers/controllers');
 
@@ -361,3 +361,169 @@ function setupSocket(httpServer) {
 }
 
 module.exports = setupSocket;
+//very impp above..
+
+
+
+// const { Server } = require('socket.io');
+// const { GameController, RoomController } = require('./controllers/controllers');
+
+// function setupSocket(httpServer) {
+//     const io = new Server(httpServer, {
+//         cors: {
+//             origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+//             methods: ["GET", "POST", "OPTIONS"],
+//             credentials: true,
+//             allowedHeaders: ["*"]
+//         },
+//         allowEIO3: true,
+//         transports: ['polling', 'websocket'],
+//         pingTimeout: 60000,
+//         pingInterval: 25000,
+//         upgradeTimeout: 30000,
+//         allowUpgrades: true,
+//         cookie: false
+//     });
+
+
+//     // Log socket.io errors
+//     io.engine.on("connection_error", (err) => {
+//         console.log('Socket.IO connection error:', err);
+//     });
+
+//     const gameController = new GameController();
+//     const roomController = new RoomController();
+
+//     const broadcastRoomList = async () => {
+//         try {
+//             const rooms = Array.from(io.sockets.adapter.rooms.keys())
+//                 .filter(room => !room.startsWith('/'))
+//                 .map(room => {
+//                     const roomData = io.sockets.adapter.rooms.get(room);
+//                     const playerCount = Array.from(roomData || []).filter(socketId => {
+//                         const socket = io.sockets.sockets.get(socketId);
+//                         return socket && !socket.data.isSpectator;
+//                     }).length;
+                    
+//                     return {
+//                         name: room,
+//                         playerCount
+//                     };
+//                 });
+
+//             io.emit('on_getting_room_list', { message: rooms });
+//         } catch (error) {
+//             console.error('Error broadcasting room list:', error);
+//         }
+//     };
+
+//     io.on('connection', async (socket) => {
+//         console.log('New socket connected:', socket.id, 'from:', socket.handshake.address);
+//         socket.data.isSpectator = false;
+
+//         try {
+//             await broadcastRoomList();
+//         } catch (error) {
+//             console.error('Initial room list broadcast failed:', error);
+//         }
+
+//         socket.on('join_game', async (message) => {
+//             try {
+//                 await roomController.joinGame(io, socket, message);
+//                 await broadcastRoomList();
+//             } catch (error) {
+//                 console.error('Join game error:', error);
+//                 socket.emit('room_join_error', { error: error.message });
+//             }
+//         });
+
+//         socket.on('start_game', () => {
+//             if (!socket.data.isSpectator) {
+//                 try {
+//                     gameController.startGame(io, socket);
+//                 } catch (error) {
+//                     console.error('Start game error:', error);
+//                     socket.emit('game_error', { error: error.message });
+//                 }
+//             }
+//         });
+
+//         socket.on('update_game', (message) => {
+//             if (!socket.data.isSpectator) {
+//                 try {
+//                     gameController.updateGame(socket, message);
+//                 } catch (error) {
+//                     console.error('Update game error:', error);
+//                     socket.emit('game_error', { error: error.message });
+//                 }
+//             }
+//         });
+
+//         socket.on('reset_game', () => {
+//             if (!socket.data.isSpectator) {
+//                 try {
+//                     gameController.resetGame(socket);
+//                 } catch (error) {
+//                     console.error('Reset game error:', error);
+//                     socket.emit('game_error', { error: error.message });
+//                 }
+//             }
+//         });
+
+//         socket.on('disconnecting', () => {
+//             try {
+//                 const gameRoom = gameController.getSocketGameRoom(socket);
+//                 if (gameRoom) {
+//                     const message = socket.data.isSpectator ? 
+//                         'Spectator left the room' : 
+//                         'Player left the game';
+                    
+//                     socket.to(gameRoom).emit('system_message', {
+//                         content: message,
+//                         timestamp: new Date().toISOString()
+//                     });
+
+//                     if (!socket.data.isSpectator) {
+//                         socket.to(gameRoom).emit('left_the_game', {
+//                             message: 'Your opponent left the game'
+//                         });
+//                     }
+//                 }
+//             } catch (error) {
+//                 console.error('Disconnecting error:', error);
+//             }
+//         });
+
+//         socket.on('disconnect', async () => {
+//             console.log('Socket disconnected:', socket.id);
+//             try {
+//                 await broadcastRoomList();
+//             } catch (error) {
+//                 console.error('Disconnect room list broadcast failed:', error);
+//             }
+//         });
+
+//         socket.on('send_message', (data) => {
+//             try {
+//                 const room = data.roomName;
+//                 if (!room) return;
+            
+//                 const messageData = {
+//                     ...data.message,
+//                     isSpectator: socket.data.isSpectator,
+//                     timestamp: new Date().toISOString(),
+//                     senderId: socket.id
+//                 };
+                
+//                 io.in(room).emit('chat_message', messageData);
+//             } catch (error) {
+//                 console.error('Send message error:', error);
+//                 socket.emit('message_error', { error: error.message });
+//             }
+//         });
+//     });
+
+//     return io;
+// }
+
+// module.exports = setupSocket;
