@@ -1,21 +1,16 @@
-
-
-// src/components/Game/index.js
 import React, { useContext, useState, useEffect } from 'react';
 import gameContext from '../../gameContext';
-// import gameService from '../../services/gameService';
-import {gameService,socketService} from '../../services/socketService';
+import {gameService, socketService} from '../../services/socketService';
 import Label, { Piece } from '../../components/Label';
 import { GameLogic } from './gameLogic';
 import { AI1 } from './ai1';
 import { AI2 } from './ai2';
 import { AI3 } from './ai3';
 import Chat from '../chat';
-// import './Game.css';
 import '../../index.css'
 
 export function Game() {
-    const [matrix, setMatrix] = useState([
+    const [boardState, setGameBoard] = useState([
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
@@ -25,10 +20,9 @@ export function Game() {
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
     ]);
-    const [isReady, setReady] = useState(false);
-    const [selectedPlayer, setSelectedPlayer] = useState('human');
-    // const [isCreator, setIsCreator] = useState(false);
-
+    const [readyStatus, setReadyStatus] = useState(false);
+    const [aiType, setAIType] = useState('human');
+    
     const {
         playerColor, setPlayerColor,
         isPlayerTurn, setPlayerTurn,
@@ -39,187 +33,274 @@ export function Game() {
         isCreator
     } = useContext(gameContext);
 
-    const gameLogic = new GameLogic(matrix);
-
-    const handlePlayerChange = (e) => {
-        setSelectedPlayer(e.target.value);
-    };
-
-    const clickedSquare = async (row, col) => {
-        if (matrix[row][col] !== 0 || !isPlayerTurn || isSpectator) return;
-
-        const affectedDisks = gameLogic.getAffectedDisks(row, col, playerColor);
-        if (affectedDisks.length !== 0) {
-            setPlayerTurn(false);
-            const newMatrix = gameLogic.move(row, col, playerColor).getBoard();
-            setMatrix(newMatrix);
-            if (socketService.socket) {
-                gameService.updateGame(socketService.socket, newMatrix);
-            }
-        }
-    };
-
-    const handleRoomJoined = () => {
-        if (socketService.socket) {
-            gameService.onRoomJoined(socketService.socket, () => {
-                setReady(true);
-            });
-        }
-    };
-
-    const startGame = () => {
-        if (socketService.socket) {
-            gameService.startGame(socketService.socket);
-        }
-    };
-
-    const handleGameStart = () => {
-        if (socketService.socket) {
-            gameService.onGameStart(socketService.socket, (options) => {
-                setGameStarted(true);
-                setPlayerColor(options.color);
-                options.start ? setPlayerTurn(true) : setPlayerTurn(false);
-            });
-        }
-    };
-
-    const resetGameState = () => {
-        setMatrix([
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 2, 1, 0, 0, 0],
-            [0, 0, 0, 1, 2, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-        ]);
-        setGameFinished(false);
-        setGameStarted(false);
-        setPlayerTurn(false);
-    };
-
-    const resetGame = () => {
-        resetGameState();
-        if (socketService.socket) {
-            gameService.resetGame(socketService.socket);
-        }
-    };
+    const gameInstance = new GameLogic(boardState);
 
     const handleGameReset = () => {
-        if (socketService.socket) {
-            gameService.onGameReset(socketService.socket, () => {
-                resetGameState();
-            });
+        try {
+            if (socketService.socket) {
+                gameService.onGameReset(socketService.socket, () => {
+                    resetGameToInitial();
+                });
+            }
+        } catch (resetError) {
+            console.error('Reset handler failed:', resetError);
         }
     };
 
-    const handleGameUpdate = () => {
-        if (socketService.socket) {
-            gameService.onGameUpdate(socketService.socket, (newMatrix) => {
-                setMatrix(newMatrix);
-                setPlayerTurn(true);
-            });
+    const handleAISelection = (eventObj) => {
+        try {
+            let selectedValue = eventObj.target.value;
+            setAIType(selectedValue);
+        } catch (selectionError) {
+            console.error('AI selection failed:', selectionError);
         }
     };
 
-    const handleDisconnect = () => {
-        if (socketService.socket) {
-            gameService.onDisconnect(socketService.socket, (message) => {
-                socketService.socket?.disconnect();
+    const processMove = async (rowPos, colPos) => {
+        try {
+            let isValidCell = boardState[rowPos][colPos] === 0;
+            let canMove = isPlayerTurn && !isSpectator;
+            
+            if (!isValidCell || !canMove) return;
+
+            const affectedPieces = gameInstance.getAffectedDisks(rowPos, colPos, playerColor);
+            
+            if (affectedPieces.length > 0) {
                 setPlayerTurn(false);
-                alert(message);
-            });
+                const updatedBoard = gameInstance.move(rowPos, colPos, playerColor).getBoard();
+                setGameBoard(updatedBoard);
+                
+                if (socketService.socket) {
+                    await gameService.updateGame(socketService.socket, updatedBoard);
+                }
+            }
+        } catch (moveError) {
+            console.error('Move processing failed:', moveError);
+        }
+    };
+
+    const resetGameToInitial = () => {
+        try {
+            let initialBoard = [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 2, 1, 0, 0, 0],
+                [0, 0, 0, 1, 2, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+            ];
+            
+            setGameBoard(initialBoard);
+            setGameFinished(false);
+            setGameStarted(false);
+            setPlayerTurn(false);
+        } catch (resetError) {
+            console.error('Game reset failed:', resetError);
+        }
+    };
+
+    const initializeGame = () => {
+        try {
+            if (socketService.socket) {
+                gameService.startGame(socketService.socket);
+            }
+        } catch (initError) {
+            console.error('Game initialization failed:', initError);
+        }
+    };
+
+    const handleRoomConnection = () => {
+        try {
+            if (socketService.socket) {
+                gameService.onRoomJoined(socketService.socket, () => {
+                    setReadyStatus(true);
+                });
+            }
+        } catch (connectionError) {
+            console.error('Room connection failed:', connectionError);
+        }
+    };
+
+    const handleGameInitialization = () => {
+        try {
+            if (socketService.socket) {
+                gameService.onGameStart(socketService.socket, (gameOptions) => {
+                    setGameStarted(true);
+                    setPlayerColor(gameOptions.color);
+                    setPlayerTurn(gameOptions.start);
+                });
+            }
+        } catch (initError) {
+            console.error('Game initialization failed:', initError);
+        }
+    };
+
+    const resetEntireGame = () => {
+        try {
+            resetGameToInitial();
+            if (socketService.socket) {
+                gameService.resetGame(socketService.socket);
+            }
+        } catch (resetError) {
+            console.error('Game reset failed:', resetError);
+        }
+    };
+
+    const handleBoardUpdate = () => {
+        try {
+            if (socketService.socket) {
+                gameService.onGameUpdate(socketService.socket, (updatedBoard) => {
+                    setGameBoard(updatedBoard);
+                    setPlayerTurn(true);
+                });
+            }
+        } catch (updateError) {
+            console.error('Board update failed:', updateError);
+        }
+    };
+
+    const handlePlayerDisconnect = () => {
+        try {
+            if (socketService.socket) {
+                gameService.onDisconnect(socketService.socket, (disconnectMsg) => {
+                    socketService.socket?.disconnect();
+                    setPlayerTurn(false);
+                    alert(disconnectMsg);
+                });
+            }
+        } catch (disconnectError) {
+            console.error('Disconnect handling failed:', disconnectError);
         }
     };
 
     useEffect(() => {
-        handleRoomJoined();
-        handleGameStart();
-        handleGameUpdate();
-        handleGameReset();
-        handleDisconnect();
+        try {
+            handleRoomConnection();
+            handleGameInitialization();
+            handleBoardUpdate();
+            handleGameReset();
+            handlePlayerDisconnect();
+        } catch (setupError) {
+            console.error('Game setup failed:', setupError);
+        }
     }, []);
 
     useEffect(() => {
-        if (!isPlayerTurn) return;
-        if (gameLogic.getMovableCell(playerColor).length !== 0) {
-            if (selectedPlayer !== 'human') {
-                if (selectedPlayer === 'ai1') {
-                    const ai1 = new AI1(gameLogic);
-                    const pos = ai1.ai1Called(playerColor);
-                    if (pos !== undefined) {
-                        clickedSquare(pos.row, pos.col);
+        try {
+            if (!isPlayerTurn) return;
+
+            let validMoves = gameInstance.getMovableCell(playerColor);
+            
+            if (validMoves.length > 0) {
+                if (aiType !== 'human') {
+                    let aiInstance;
+                    let movePosition;
+
+                    switch(aiType) {
+                        case 'ai1':
+                            aiInstance = new AI1(gameInstance);
+                            movePosition = aiInstance.ai1Called(playerColor);
+                            break;
+                        case 'ai2':
+                            aiInstance = new AI2(gameInstance);
+                            movePosition = aiInstance.ai2Called(playerColor);
+                            break;
+                        case 'ai3':
+                            aiInstance = new AI3(gameInstance);
+                            movePosition = aiInstance.ai3Called(playerColor);
+                            break;
                     }
-                } else if (selectedPlayer === 'ai2') {
-                    const ai2 = new AI2(gameLogic);
-                    const pos = ai2.ai2Called(playerColor);
-                    if (pos !== undefined) {
-                        clickedSquare(pos.row, pos.col);
+
+                    if (movePosition !== undefined) {
+                        processMove(movePosition.row, movePosition.col);
                     }
-                } else if (selectedPlayer === 'ai3') {
-                    const ai3 = new AI3(gameLogic);
-                    const pos = ai3.ai3Called(playerColor);
-                    if (pos !== undefined) {
-                        clickedSquare(pos.row, pos.col);
+                }
+            } else {
+                if (socketService.socket) {
+                    console.log('No valid moves available');
+                    let opponentMoves = gameInstance.getMovableCell(playerColor === 1 ? 2 : 1);
+                    
+                    if (opponentMoves.length > 0) {
+                        gameService.updateGame(socketService.socket, boardState);
+                        setPlayerTurn(false);
+                    } else {
+                        setGameFinished(true);
                     }
                 }
             }
-        } else {
-            if (socketService.socket) {
-                console.log('NO CELL');
-                if (gameLogic.getMovableCell(playerColor === 1 ? 2 : 1).length !== 0) {
-                    gameService.updateGame(socketService.socket, matrix);
-                    setPlayerTurn(false);
-                } else {
-                    setGameFinished(true);
-                }
-            }
+        } catch (turnError) {
+            console.error('Turn processing failed:', turnError);
         }
     }, [isPlayerTurn]);
 
     useEffect(() => {
-        if (!isGameFinished) return;
-        if (socketService.socket) {
-            gameService.updateGame(socketService.socket, matrix);
-            const blackScore = gameLogic.getScore(1);
-            const whiteScore = gameLogic.getScore(2);
-            if (blackScore > whiteScore) {
-                alert('Black Won!\nBlack score: ' + blackScore + '\nWhite score: ' + whiteScore);
-            } else if (blackScore < whiteScore) {
-                alert('White Won!\nWhite score: ' + whiteScore + '\nBlack score: ' + blackScore);
-            } else {
-                alert('Tie!');
+        try {
+            if (!isGameFinished) return;
+
+            if (socketService.socket) {
+                gameService.updateGame(socketService.socket, boardState);
+                
+                let blackPieces = gameInstance.getScore(1);
+                let whitePieces = gameInstance.getScore(2);
+                
+                let resultMessage = '';
+                if (blackPieces > whitePieces) {
+                    resultMessage = `Black Won!\nBlack score: ${blackPieces}\nWhite score: ${whitePieces}`;
+                } else if (blackPieces < whitePieces) {
+                    resultMessage = `White Won!\nWhite score: ${whitePieces}\nBlack score: ${blackPieces}`;
+                } else {
+                    resultMessage = 'Tie!';
+                }
+                
+                alert(resultMessage);
             }
+            setPlayerTurn(false);
+        } catch (gameEndError) {
+            console.error('Game end processing failed:', gameEndError);
         }
-        setPlayerTurn(false);
     }, [isGameFinished]);
 
-    const renderGameBoard = () => (
-        <div className={`game-board ${isSpectator ? 'spectator-mode' : ''}`}>
-            {matrix.map((row, rowIdx) => (
-                <div style={{ display: 'flex' }} key={rowIdx}>
-                    {row.map((column, columnIdx) => (
-                        <div 
-                            className='cell' 
-                            key={columnIdx} 
-                            onClick={() => !isSpectator && clickedSquare(rowIdx, columnIdx)}
+    const renderGameControls = () => (
+        <div className="game-controls">
+            {!isSpectator && (
+                <>
+                    {roomName && (
+                        <button 
+                            className='button' 
+                            disabled={isGameStarted || !readyStatus} 
+                            onClick={initializeGame}
+                            style={{ display: isCreator ? 'block' : 'none' }}
                         >
-                            {column !== 0 ? (
-                                <Piece color={column} />
-                            ) : (
-                                gameLogic.canClickSpot(rowIdx, columnIdx, playerColor) && 
-                                isPlayerTurn && 
-                                !isSpectator ? (
-                                    <Piece color={column} />
-                                ) : (
-                                    ''
-                                )
-                            )}
-                        </div>
-                    ))}
-                </div>
-            ))}
+                            START
+                        </button>
+                    )}
+                    <button 
+                        className='button' 
+                        disabled={!isGameFinished} 
+                        onClick={resetEntireGame}
+                    >
+                        RESET
+                    </button>
+                    <select 
+                        className='dropdown' 
+                        disabled={isGameStarted} 
+                        onChange={handleAISelection}
+                    >
+                        <option value='human'>Human</option>
+                        <option value='ai1'>AI 1</option>
+                        <option value='ai2'>AI 2</option>
+                        <option value='ai3'>AI 3</option>
+                    </select>
+                </>
+            )}
+            <button 
+                className='button' 
+                onClick={() => window.location.reload()}
+            >
+                LEAVE ROOM
+            </button>
         </div>
     );
 
@@ -231,7 +312,7 @@ export function Game() {
                     <Label label="Spectator Mode" />
                 </div>
             )}
-            {!isGameStarted && (!isReady ? 
+            {!isGameStarted && (!readyStatus ? 
                 <Label label={'Waiting for other player to join...'} /> : 
                 <Label label={'Player joined!'} />
             )}
@@ -245,106 +326,53 @@ export function Game() {
             )}
             {isGameStarted && (
                 <div className="score-info">
-                    <Label label={`Black: ${gameLogic.getScore(1)}`} />
-                    <Label label={`White: ${gameLogic.getScore(2)}`} />
+                    <Label label={`Black: ${gameInstance.getScore(1)}`} />
+                    <Label label={`White: ${gameInstance.getScore(2)}`} />
                 </div>
             )}
         </div>
     );
 
-    // const renderControls = () => (
-    //     <div className="game-controls">
-    //         {!isSpectator && (
-    //             <>
-    //                 <button 
-    //                     className='button' 
-    //                     disabled={isGameStarted || !isReady} 
-    //                     onClick={startGame}
-    //                 >
-    //                     START
-    //                 </button>
-    //                 <button 
-    //                     className='button' 
-    //                     disabled={!isGameFinished} 
-    //                     onClick={resetGame}
-    //                 >
-    //                     RESET
-    //                 </button>
-    //                 <select 
-    //                     className='dropdown' 
-    //                     disabled={isGameStarted} 
-    //                     onChange={handlePlayerChange}
-    //                 >
-    //                     <option value='human'>Human</option>
-    //                     <option value='ai1'>AI 1</option>
-    //                     <option value='ai2'>AI 2</option>
-    //                     <option value='ai3'>AI 3</option>
-    //                 </select>
-    //             </>
-    //         )}
-    //         <button className='button' onClick={() => window.location.reload()}>
-    //             LEAVE ROOM
-    //         </button>
-    //     </div>
-    // );
-
-
-    const renderControls = () => (
-        <div className="game-controls">
-            {!isSpectator && (
-                <>
-                    {roomName && ( // Only show START button to room creator
-                        <button 
-                            className='button' 
-                            disabled={isGameStarted || !isReady} 
-                            onClick={startGame}
-                            style={{ display: isCreator ? 'block' : 'none' }} // Add this
+    const renderGameBoard = () => (
+        <div className={`game-board ${isSpectator ? 'spectator-mode' : ''}`}>
+            {boardState.map((rowData, rowIndex) => (
+                <div style={{ display: 'flex' }} key={rowIndex}>
+                    {rowData.map((cellValue, colIndex) => (
+                        <div 
+                            className='cell' 
+                            key={colIndex} 
+                            onClick={() => !isSpectator && processMove(rowIndex, colIndex)}
                         >
-                            START
-                        </button>
-                    )}
-                    <button 
-                        className='button' 
-                        disabled={!isGameFinished} 
-                        onClick={resetGame}
-                    >
-                        RESET
-                    </button>
-                    <select 
-                        className='dropdown' 
-                        disabled={isGameStarted} 
-                        onChange={handlePlayerChange}
-                    >
-                        <option value='human'>Human</option>
-                        <option value='ai1'>AI 1</option>
-                        <option value='ai2'>AI 2</option>
-                        <option value='ai3'>AI 3</option>
-                    </select>
-                </>
-            )}
-            <button className='button' onClick={() => window.location.reload()}>
-                LEAVE ROOM
-            </button>
+                            {cellValue !== 0 ? (
+                                <Piece color={cellValue} />
+                            ) : (
+                                gameInstance.canClickSpot(rowIndex, colIndex, playerColor) && 
+                                isPlayerTurn && 
+                                !isSpectator ? (
+                                    <Piece color={cellValue} />
+                                ) : (
+                                    ''
+                                )
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ))}
         </div>
     );
 
-    // In your Game component
-// src/components/Game/index.js
-
-// ... keep other code the same ...
-
-return (
-    <div className="game-container">
-        <div className="game-wrapper">
-            {renderGameInfo()}
-            {renderGameBoard()}
-            {renderControls()}
+    return (
+        <div className="game-container">
+            <div className="game-wrapper">
+                {renderGameInfo()}
+                {renderGameBoard()}
+                {renderGameControls()}
+            </div>
+            <Chat 
+                socket={socketService.socket} 
+                roomName={roomName}
+                isSpectator={isSpectator}
+            />
         </div>
-        <Chat 
-            socket={socketService.socket} 
-            roomName={roomName}
-            isSpectator={isSpectator}
-        />
-    </div>
-);
+    );
 }
