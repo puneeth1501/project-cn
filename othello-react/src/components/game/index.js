@@ -290,7 +290,7 @@ export function Game() {
                     // >
                     //     RESET
                     // </button>
-                    <button 
+                    //<button
                     className='button' onClick={resetGame}> RESET</button> 
                     <select 
                         className='dropdown' 
